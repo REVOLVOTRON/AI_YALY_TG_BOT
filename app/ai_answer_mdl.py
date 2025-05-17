@@ -4,13 +4,13 @@ import json
 import os
 import logging
 
-# Настройка логирования
+# Настраиваем логирование, чтобы видеть, что происходит
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
-# Чтение OpenAI API ключа из файла api_keys.json
+# Читаем API ключ для OpenAI из JSON файла
 def load_openai_api_key():
     api_keys_path = os.path.join('api_keys', 'api_keys.json')
     try:
@@ -18,70 +18,52 @@ def load_openai_api_key():
             data = json.load(file)
             return data['openai_api_key']
     except FileNotFoundError:
-        logging.error("Файл api_keys.json не найден в директории api_keys")
+        logging.error("Не нашёл api_keys.json в папке api_keys")
         raise
     except KeyError:
-        logging.error("Ключ 'openai_api_key' не найден в api_keys.json")
+        logging.error("В api_keys.json нет ключа openai_api_key")
         raise
     except json.JSONDecodeError:
-        logging.error("Ошибка декодирования JSON в api_keys.json")
+        logging.error("Не смог разобрать JSON в api_keys.json")
         raise
 
-# Инициализация OpenAI клиента
+# Создаём клиент для OpenAI
 client = openai.OpenAI(
     api_key=load_openai_api_key(),
-    base_url="https://api.intelligence.io.solutions/api/v1/",
+    base_url="https://openrouter.ai/api/v1",
 )
 
+# Функция для обработки вопросов через OpenAI
 async def answer_question(query: str) -> tuple[str, bool]:
-    """
-    Обрабатывает вопрос через OpenAI API, затем форматирует ответ через второе обращение.
-    Возвращает кортеж: (отформатированный ответ или сообщение об ошибке, успех ли).
-    """
+    # Проверяем, есть ли вообще вопрос
     if not query:
-        return "Пожалуйста, задайте вопрос после 'Ask'.", False
+        return "Напиши вопрос после 'Ask', пожалуйста.", False
 
     try:
-        # Первое обращение: Запрос к OpenAI API для получения ответа
-        response = client.chat.completions.create(
-            model="meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
-            messages=[
-                {"role": "system", "content": """
-                Вы — полезный ассистент. Отвечайте на вопросы пользователей кратко и точно.
-                Не используйте форматирование (HTML или Markdown), возвращайте чистый текст.
-                """},
-                {"role": "user", "content": query},
-            ],
-            temperature=0.4,
-            stream=False,
-            max_completion_tokens=10000
+        # Отправляем запрос к OpenAI
+        response = await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: client.chat.completions.create(
+                model="nousresearch/deephermes-3-mistral-24b-preview:free",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": """
+                        Ты умный помощник. Отвечай кратко и по делу.
+                        Не добавляй HTML или Markdown, только чистый текст.
+                        """
+                    },
+                    {"role": "user", "content": query},
+                ],
+                temperature=0.4,
+                stream=False,
+                max_completion_tokens=10000
+            )
         )
 
-        # Получаем ответ из первого запроса
+        # Берём ответ
         answer = response.choices[0].message.content.strip()
-
-        # Второе обращение: Форматирование ответа для Telegram
-        format_response = client.chat.completions.create(
-            model="meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
-            messages=[
-                {"role": "system", "content": """
-                Вы — ассистент по форматированию. Преобразуйте предоставленный текст в Telegram-совместимый HTML.
-                - Если текст содержит код (например, начинается с 'import' или содержит синтаксис программирования), оберните его в <pre><code>.
-                - Экранируйте специальные символы: '<' → '<', '>' → '>', '&' → '&'.
-                - Для обычного текста используйте <b>, <i> или другие HTML-теги при необходимости.
-                - Верните только отформатированный текст, готовый для отправки через Telegram с parse_mode='HTML'.
-                """},
-                {"role": "user", "content": answer},
-            ],
-            temperature=0.2,
-            stream=False,
-            max_completion_tokens=10000
-        )
-
-        # Получаем отформатированный ответ
-        formatted_answer = format_response.choices[0].message.content.strip()
-
-        return formatted_answer, True
+        return answer, True
 
     except Exception as e:
-        return f"Ошибка при обработке вопроса: {str(e)}", False
+        return f"Что-то пошло не так с вопросом: {str(e)}", False
