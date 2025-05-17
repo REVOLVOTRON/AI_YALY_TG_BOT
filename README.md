@@ -166,4 +166,4 @@ AI_YALY_TG_BOT/
 
 ## Контакты
 
-Если есть вопросы или предложения, пишите в [issues](https://github.com/your-username/AI_YALY_TG_BOT/issues) или свяжитесь с разработчиком через Telegram: @YourTelegramHandle.
+Если есть вопросы или предложения, пишите в [issues](https://github.com/your-username/AI_YALY_TG_BOT/issues) или свяжитесь с разработчиком через Telegram: @ReVoLuTiOn137.
